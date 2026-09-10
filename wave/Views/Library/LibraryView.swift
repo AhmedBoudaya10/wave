@@ -14,10 +14,27 @@ enum LibrarySection: String, CaseIterable {
     case favorites = "Favorites"
 }
 
+enum LibrarySortOption: String, CaseIterable {
+    case title = "Title"
+    case artist = "Artist"
+    case recentlyAdded = "Recently Added"
+    case duration = "Duration"
+    
+    var icon: String {
+        switch self {
+        case .title: return "textformat"
+        case .artist: return "person"
+        case .recentlyAdded: return "clock"
+        case .duration: return "timer"
+        }
+    }
+}
+
 struct LibraryView: View {
     @Bindable var audioEngine: AudioEngineService
     @State private var selectedSection: LibrarySection = .songs
     @State private var isImportSheetPresented = false
+    @State private var sortOption: LibrarySortOption = .recentlyAdded
 
     // Group tracks into albums dynamically
     private var dynamicAlbums: [Album] {
@@ -39,6 +56,19 @@ struct LibraryView: View {
 
     private var uniqueArtists: [String] {
         Array(Set(audioEngine.library.map { $0.artistName })).sorted()
+    }
+
+    private var sortedTracks: [Track] {
+        switch sortOption {
+        case .title:
+            return audioEngine.library.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        case .artist:
+            return audioEngine.library.sorted { $0.artistName.localizedCaseInsensitiveCompare($1.artistName) == .orderedAscending }
+        case .recentlyAdded:
+            return audioEngine.library.sorted { $0.id.uuidString > $1.id.uuidString }
+        case .duration:
+            return audioEngine.library.sorted { $0.duration < $1.duration }
+        }
     }
 
     var body: some View {
@@ -128,20 +158,62 @@ struct LibraryView: View {
             if audioEngine.library.isEmpty {
                 emptyLibraryView
             } else {
-                LazyVStack(spacing: 2) {
-                    ForEach(audioEngine.library) { track in
-                        TrackRowView(
-                            track: track,
-                            isCurrentTrack: audioEngine.currentTrack?.id == track.id,
-                            isPlaying: audioEngine.isPlaying,
-                            onPlay: { audioEngine.playTrack(track, inContext: audioEngine.library) },
-                            onToggleFavorite: { audioEngine.toggleFavorite(for: track) },
-                            onPlayNext: { audioEngine.playNext(track) },
-                            onDelete: { audioEngine.deleteTrack(track) }
-                        )
+                VStack(spacing: 0) {
+                    // Sort picker
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Color.waveTextTertiary)
+                        
+                        Menu {
+                            ForEach(LibrarySortOption.allCases, id: \.self) { option in
+                                Button {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        sortOption = option
+                                    }
+                                } label: {
+                                    HStack {
+                                        Text(option.rawValue)
+                                        if sortOption == option {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            Text(sortOption.rawValue)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color.waveTextSecondary)
+                            
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(Color.waveTextTertiary)
+                        }
+                        
+                        Spacer()
+                        
+                        Text("\(audioEngine.library.count) songs")
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundStyle(Color.waveTextTertiary)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    
+                    LazyVStack(spacing: 2) {
+                        ForEach(sortedTracks) { track in
+                            TrackRowView(
+                                track: track,
+                                isCurrentTrack: audioEngine.currentTrack?.id == track.id,
+                                isPlaying: audioEngine.isPlaying,
+                                onPlay: { audioEngine.playTrack(track, inContext: sortedTracks) },
+                                onToggleFavorite: { audioEngine.toggleFavorite(for: track) },
+                                onPlayNext: { audioEngine.playNext(track) },
+                                onDelete: { audioEngine.deleteTrack(track) }
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 4)
                 }
-                .padding(.horizontal, 4)
             }
         }
     }

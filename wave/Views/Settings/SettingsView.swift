@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("gaplessPlayback") private var isGaplessEnabled = true
     @AppStorage("hiResPassthrough") private var isHiResPassthrough = true
     @AppStorage("hapticFeedback") private var hapticLevel = "Crisp"
+    @AppStorage("lyricsAtmosphereLevel") private var atmosphereLevelRaw = "normal"
     @State private var artworkCacheSizeBytes: Int64 = 0
     @State private var isCacheCleared = false
     @State private var isDeleteAllAlertPresented = false
@@ -118,6 +119,42 @@ struct SettingsView: View {
                         }
                         .padding(.horizontal, 16)
                         
+                        // Lyrics Atmosphere
+                        VStack(alignment: .leading, spacing: 12) {
+                            sectionHeader("LYRICS ATMOSPHERE")
+                            
+                            VStack(spacing: 1) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Emoji Backdrop")
+                                            .font(.system(size: 15, weight: .medium))
+                                            .foregroundStyle(Color.waveTextPrimary)
+                                        Text("Decorative lyric moods behind the text")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(Color.waveTextSecondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Picker("Atmosphere", selection: $atmosphereLevelRaw) {
+                                        ForEach(LyricsEmojiAtmosphereLevel.allCases) { level in
+                                            Text(level.displayName).tag(level.rawValue)
+                                        }
+                                    }
+                                    .pickerStyle(.menu)
+                                    .tint(Color.waveAccent)
+                                }
+                                .padding(16)
+                                .background(Color.waveSurface)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Color.waveBorder, lineWidth: 1)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        
                         // Storage & Diagnostics
                         VStack(alignment: .leading, spacing: 12) {
                             sectionHeader("STORAGE & CACHE")
@@ -175,7 +212,7 @@ struct SettingsView: View {
                                 .foregroundStyle(Color.waveTextPrimary)
                                 .tracking(2.0)
                             
-                            Text("Version 1.0.0 • iOS 27 Native Edition")
+                            Text("Version 1.1.0 • iOS 27 Native Edition")
                                 .font(.system(size: 12, weight: .regular))
                                 .foregroundStyle(Color.waveTextTertiary)
                             

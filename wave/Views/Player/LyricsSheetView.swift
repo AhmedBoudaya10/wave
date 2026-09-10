@@ -10,13 +10,19 @@ import SwiftUI
 struct LyricsSheetView: View {
     @Bindable var audioEngine: AudioEngineService
     @Environment(\.dismiss) private var dismiss
-    
+    @AppStorage("lyricsAtmosphereLevel") private var atmosphereLevelRaw = "normal"
     @State private var lyrics: TrackLyrics? = nil
     @State private var isLoading: Bool = true
     @State private var errorMessage: String? = nil
     @State private var activeLineId: UUID? = nil
     @State private var isAtmospherePulsing = false
     @State private var userIsScrubbing = false
+    @State private var emojiMap: [UUID: String] = [:]
+    @State private var plainLyricsEmoji: String? = nil
+
+    private var atmosphereLevel: LyricsEmojiAtmosphereLevel {
+        LyricsEmojiAtmosphereLevel(rawValue: atmosphereLevelRaw) ?? .normal
+    }
 
     var body: some View {
         NavigationStack {
@@ -140,14 +146,25 @@ struct LyricsSheetView: View {
                                 audioEngine.seek(to: line.time)
                             }
                         } label: {
-                            Text(line.text.isEmpty ? "•••" : line.text)
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
-                                .foregroundStyle(isCurrent ? Color.white : Color.white.opacity(0.28))
-                                .shadow(color: isCurrent ? Color.white.opacity(0.4) : .clear, radius: 10, x: 0, y: 0)
-                                .blur(radius: isCurrent ? 0 : 0.7)
-                                .scaleEffect(isCurrent ? 1.0 : 0.88, anchor: .leading)
-                                .multilineTextAlignment(.leading)
-                                .animation(.spring(response: 0.42, dampingFraction: 0.76), value: isCurrent)
+                            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                if let emoji = emojiMap[line.id], atmosphereLevel != .off {
+                                    Text(emoji)
+                                        .font(.system(size: atmosphereLevel.inlineSize))
+                                        .opacity(isCurrent ? atmosphereLevel.inlineOpacity : atmosphereLevel.inactiveOpacity)
+                                        .animation(.easeInOut(duration: 0.3), value: isCurrent)
+                                        .allowsHitTesting(false)
+                                        .accessibilityHidden(true)
+                                }
+                                
+                                Text(line.text.isEmpty ? "•••" : line.text)
+                                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                                    .foregroundStyle(isCurrent ? Color.white : Color.white.opacity(0.28))
+                                    .shadow(color: isCurrent ? Color.white.opacity(0.4) : .clear, radius: 10, x: 0, y: 0)
+                                    .blur(radius: isCurrent ? 0 : 0.7)
+                                    .scaleEffect(isCurrent ? 1.0 : 0.88, anchor: .leading)
+                                    .multilineTextAlignment(.leading)
+                                    .animation(.spring(response: 0.42, dampingFraction: 0.76), value: isCurrent)
+                            }
                         }
                         .buttonStyle(.plain)
                         .id(line.id)
@@ -192,13 +209,24 @@ struct LyricsSheetView: View {
 
     private func plainLyricsView(text: String) -> some View {
         ScrollView {
-            Text(text)
-                .font(.system(size: 21, weight: .medium, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.92))
-                .lineSpacing(12)
-                .multilineTextAlignment(.leading)
-                .padding(32)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .top, spacing: 14) {
+                if let emoji = plainLyricsEmoji, atmosphereLevel != .off {
+                    Text(emoji)
+                        .font(.system(size: atmosphereLevel.inlineSize))
+                        .opacity(atmosphereLevel.inlineOpacity)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+                
+                Text(text)
+                    .font(.system(size: 21, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.92))
+                    .lineSpacing(12)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .padding(32)
         }
     }
 
@@ -223,7 +251,17 @@ struct LyricsSheetView: View {
     private func loadLyrics() async {
         guard let track = audioEngine.currentTrack else { return }
         isLoading = true
-        lyrics = await LyricsService.shared.getLyrics(for: track)
+        let fetched = await LyricsService.shared.getLyrics(for: track)
+        lyrics = fetched
+        emojiMap = [:]
+        plainLyricsEmoji = nil
+        if let fetched {
+            if let synced = fetched.syncedLyrics, !synced.isEmpty {
+                emojiMap = LyricsEmojiEngine.shared.emojiMap(for: synced)
+            } else if let plain = fetched.plainLyrics, !plain.isEmpty {
+                plainLyricsEmoji = LyricsEmojiEngine.shared.emoji(forPlainLyrics: plain)
+            }
+        }
         isLoading = false
     }
 }

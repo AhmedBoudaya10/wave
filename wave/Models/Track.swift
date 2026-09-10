@@ -117,12 +117,16 @@ struct Album: Identifiable, Hashable, Sendable {
 struct Playlist: Identifiable, Hashable, Sendable, Codable {
     let id: UUID
     var name: String
+    var description: String
+    var artworkKey: UUID?
     var createdAt: Date
     var trackIds: [UUID]
     
-    init(id: UUID = UUID(), name: String, createdAt: Date = Date(), trackIds: [UUID] = []) {
+    init(id: UUID = UUID(), name: String, description: String = "", artworkKey: UUID? = nil, createdAt: Date = Date(), trackIds: [UUID] = []) {
         self.id = id
         self.name = name
+        self.description = description
+        self.artworkKey = artworkKey
         self.createdAt = createdAt
         self.trackIds = trackIds
     }

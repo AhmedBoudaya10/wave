@@ -55,6 +55,17 @@ final class AudioEngineService {
     // Playlists
     var playlists: [Playlist] = []
     
+    /// Built-in Liked Songs playlist — dynamically built from favorites
+    var likedSongsPlaylist: Playlist {
+        let favoriteIds = library.filter { $0.isFavorite }.map { $0.id }
+        return Playlist(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            name: "Liked Songs",
+            description: "All your favorite tracks",
+            trackIds: favoriteIds
+        )
+    }
+    
     var isShuffleActive: Bool = false
     var repeatMode: RepeatMode = .off
     var isScrubbing: Bool = false
@@ -138,8 +149,8 @@ final class AudioEngineService {
     
     // MARK: - Playback Controls
     
-    func playTrack(_ track: Track, inContext contextQueue: [Track] = []) {
-        if let current = currentTrack, current.id != track.id {
+    func playTrack(_ track: Track, inContext contextQueue: [Track] = [], addToHistory: Bool = true) {
+        if addToHistory, let current = currentTrack, current.id != track.id {
             history.append(current)
         }
         
@@ -275,7 +286,7 @@ final class AudioEngineService {
         }
         
         if let previous = history.popLast() {
-            playTrack(previous, inContext: playbackQueue)
+            playTrack(previous, inContext: playbackQueue, addToHistory: false)
         } else {
             seek(to: 0)
         }
@@ -420,10 +431,7 @@ final class AudioEngineService {
     }
     
     func removeTrackFromQueue(at offsets: IndexSet) {
-        let tracksToRemove = offsets.map { playbackQueue[$0] }
-        for track in tracksToRemove {
-            deleteTrack(track)
-        }
+        playbackQueue.remove(atOffsets: offsets)
     }
     
     func moveTrackInQueue(from source: IndexSet, to destination: Int) {
@@ -432,11 +440,19 @@ final class AudioEngineService {
     
     // MARK: - Playlists
     
-    func createPlaylist(name: String) {
+    func createPlaylist(name: String, description: String = "", artworkKey: UUID? = nil) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let playlist = Playlist(name: trimmed)
+        let playlist = Playlist(name: trimmed, description: description, artworkKey: artworkKey)
         playlists.append(playlist)
+        saveLibrary()
+    }
+    
+    func updatePlaylist(id: UUID, name: String, description: String, artworkKey: UUID?) {
+        guard let index = playlists.firstIndex(where: { $0.id == id }) else { return }
+        playlists[index].name = name
+        playlists[index].description = description
+        playlists[index].artworkKey = artworkKey
         saveLibrary()
     }
     
