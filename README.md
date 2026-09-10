@@ -1,3 +1,9 @@
+
+<img width="414" height="896" alt="IMG_6245" src="https://github.com/user-attachments/assets/527b6fb4-20c6-483d-9f1d-e83a60d56712" />
+<img width="414" height="896" alt="IMG_6246" src="https://github.com/user-attachments/assets/50ee439c-ce0c-47b0-a9bb-ffe47f29d190" />
+<img width="414" height="896" alt="IMG_6248" src="https://github.com/user-attachments/assets/36c2f261-385f-4aff-98f2-f87427c2518b" />
+<img width="414" height="896" alt="IMG_6247" src="https://github.com/user-attachments/assets/417d2644-b108-437a-ab5a-455e69ca720e" />
+
 MP3 Player
 
 A modern, aesthetic iOS music player built for people who want a beautiful, smooth, and focused way to listen to their own music library.
