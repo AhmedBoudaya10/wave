@@ -10,14 +10,18 @@ import SwiftUI
 enum WaveTab: Int, CaseIterable {
     case library = 0
     case playlists = 1
-    case search = 2
-    case settings = 3
+    case books = 2
+    case search = 3
+    case stats = 4
+    case settings = 5
 
     var title: String {
         switch self {
         case .library: return "Library"
         case .playlists: return "Playlists"
+        case .books: return "Books"
         case .search: return "Search"
+        case .stats: return "Stats"
         case .settings: return "Settings"
         }
     }
@@ -26,7 +30,9 @@ enum WaveTab: Int, CaseIterable {
         switch self {
         case .library: return "music.note.house.fill"
         case .playlists: return "music.note.list"
+        case .books: return "book.fill"
         case .search: return "magnifyingglass"
+        case .stats: return "chart.bar.fill"
         case .settings: return "gearshape.fill"
         }
     }
@@ -61,7 +67,7 @@ struct FloatingDockView: View {
                         VStack(spacing: 3) {
                             Image(systemName: tab.iconName)
                                 .font(.system(size: 19, weight: isSelected ? .bold : .medium))
-                                .symbolEffect(.bounce, value: isSelected)
+                                .compatBounce(value: isSelected)
                                 .foregroundStyle(isSelected ? Color.waveAccent : Color.secondary)
 
                             Text(tab.title)
@@ -73,7 +79,7 @@ struct FloatingDockView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .sensoryFeedback(.impact(weight: .light), trigger: isSelected)
+                    .compatImpactLight(trigger: isSelected)
                 }
             }
             .padding(.horizontal, 8)

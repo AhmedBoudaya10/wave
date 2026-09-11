@@ -18,18 +18,19 @@ struct SearchView: View {
     @Bindable var audioEngine: AudioEngineService
     @State private var searchQuery = ""
     @State private var selectedScope: SearchScope = .all
+    @State private var playlistSheetTrack: Track? = nil
     
     private var filteredTracks: [Track] {
         guard !searchQuery.isEmpty else { return [] }
-        return audioEngine.library.filter {
+        return audioEngine.musicTracks.filter {
             $0.title.localizedCaseInsensitiveContains(searchQuery) ||
             $0.artistName.localizedCaseInsensitiveContains(searchQuery) ||
             $0.albumTitle.localizedCaseInsensitiveContains(searchQuery)
         }
     }
-    
+
     private var dynamicAlbums: [Album] {
-        let grouped = Dictionary(grouping: audioEngine.library) { "\($0.artistName)_\($0.albumTitle)" }
+        let grouped = Dictionary(grouping: audioEngine.musicTracks) { "\($0.artistName)_\($0.albumTitle)" }
         return grouped.values.compactMap { tracks in
             guard let first = tracks.first else { return nil }
             return Album(
@@ -163,6 +164,9 @@ struct SearchView: View {
                                                         onPlayNext: {
                                                             audioEngine.playNext(track)
                                                         },
+                                                        onAddToPlaylist: {
+                                                            playlistSheetTrack = track
+                                                        },
                                                         onDelete: {
                                                             audioEngine.deleteTrack(track)
                                                         }
@@ -208,6 +212,9 @@ struct SearchView: View {
                 }
             }
             .navigationTitle("Search")
+            .sheet(item: $playlistSheetTrack) { track in
+                AddToPlaylistSheet(track: track, audioEngine: audioEngine)
+            }
         }
     }
 }

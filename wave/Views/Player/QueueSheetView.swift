@@ -10,6 +10,7 @@ import SwiftUI
 struct QueueSheetView: View {
     @Bindable var audioEngine: AudioEngineService
     @Environment(\.dismiss) private var dismiss
+    @State private var isClearConfirmPresented = false
 
     var body: some View {
         NavigationStack {
@@ -38,12 +39,51 @@ struct QueueSheetView: View {
                         Text("\(audioEngine.queue.count) tracks")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(Color.secondary)
+
+                        if audioEngine.queue.count > 1 {
+                            Button {
+                                isClearConfirmPresented = true
+                            } label: {
+                                Text("Clear")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(Color.waveAccent)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.leading, 8)
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 8)
+                    .confirmationDialog(
+                        "Clear Up Next?",
+                        isPresented: $isClearConfirmPresented,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Clear Queue", role: .destructive) {
+                            audioEngine.clearUpNext()
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("The currently playing track will keep playing.")
+                    }
 
                     // Queue list
-                    List {
+                    if audioEngine.queue.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "list.bullet")
+                                .font(.system(size: 40))
+                                .foregroundStyle(Color.secondary.opacity(0.5))
+                                .padding(.top, 40)
+                            Text("Queue is Empty")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(Color.primary)
+                            Text("Play anything and it will show up here.")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Color.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        List {
                         ForEach(audioEngine.queue) { track in
                             let isCurrent = track.id == audioEngine.currentTrack?.id
                             queueRow(track: track, isCurrent: isCurrent)
@@ -51,10 +91,7 @@ struct QueueSheetView: View {
                                     isCurrent
                                         ? RoundedRectangle(cornerRadius: 12, style: .continuous)
                                             .fill(.clear)
-                                            .glassEffect(
-                                                .regular.tint(Color.waveAccent.opacity(0.10)),
-                                                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            )
+                                            .waveGlassRounded(tint: Color.waveAccent.opacity(0.10), cornerRadius: 12)
                                         : nil
                                 )
                                 .listRowSeparatorTint(Color.primary.opacity(0.08))
@@ -64,16 +101,17 @@ struct QueueSheetView: View {
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
+                    }
                 }
             }
             .navigationTitle("Play Queue")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     EditButton()
                         .foregroundStyle(Color.waveAccent)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") { dismiss() }
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(Color.waveAccent)
@@ -103,10 +141,7 @@ struct QueueSheetView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity)
-        .glassEffect(
-            .regular.tint(Color.waveAccent.opacity(0.06)),
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-        )
+        .liquidGlassSurface(cornerRadius: 18, tint: Color.waveAccent, tintOpacity: 0.06)
     }
 
     private func specPill(title: String, value: String) -> some View {
@@ -154,7 +189,7 @@ struct QueueSheetView: View {
                 Image(systemName: "waveform")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(Color.waveAccent)
-                    .symbolEffect(.variableColor.cumulative, isActive: true)
+                    .compatVariableColorWaveform()
             } else {
                 Text(track.formattedDuration)
                     .font(.system(size: 13, weight: .medium).monospacedDigit())

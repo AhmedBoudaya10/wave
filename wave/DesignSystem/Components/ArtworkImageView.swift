@@ -66,6 +66,6 @@ struct ArtworkImageView: View {
             loadedImage = nil
             return
         }
-        loadedImage = ArtworkCacheManager.shared.loadArtwork(for: artworkKey)
+        loadedImage = ArtworkCacheManager.shared.loadThumbnail(for: artworkKey)
     }
 }

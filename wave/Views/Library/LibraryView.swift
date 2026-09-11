@@ -12,6 +12,8 @@ enum LibrarySection: String, CaseIterable {
     case albums = "Albums"
     case artists = "Artists"
     case favorites = "Favorites"
+    case recent = "Recent"
+    case top = "Top"
 }
 
 enum LibrarySortOption: String, CaseIterable {
@@ -35,10 +37,11 @@ struct LibraryView: View {
     @State private var selectedSection: LibrarySection = .songs
     @State private var isImportSheetPresented = false
     @State private var sortOption: LibrarySortOption = .recentlyAdded
+    @State private var playlistSheetTrack: Track? = nil
 
-    // Group tracks into albums dynamically
+    // Group tracks into albums dynamically (music only — books live on Books shelf)
     private var dynamicAlbums: [Album] {
-        let grouped = Dictionary(grouping: audioEngine.library) { "\($0.artistName)_\($0.albumTitle)" }
+        let grouped = Dictionary(grouping: audioEngine.musicTracks) { "\($0.artistName)_\($0.albumTitle)" }
         return grouped.values.compactMap { tracks in
             guard let first = tracks.first else { return nil }
             return Album(
@@ -55,19 +58,19 @@ struct LibraryView: View {
     }
 
     private var uniqueArtists: [String] {
-        Array(Set(audioEngine.library.map { $0.artistName })).sorted()
+        Array(Set(audioEngine.musicTracks.map { $0.artistName })).sorted()
     }
 
     private var sortedTracks: [Track] {
         switch sortOption {
         case .title:
-            return audioEngine.library.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+            return audioEngine.musicTracks.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         case .artist:
-            return audioEngine.library.sorted { $0.artistName.localizedCaseInsensitiveCompare($1.artistName) == .orderedAscending }
+            return audioEngine.musicTracks.sorted { $0.artistName.localizedCaseInsensitiveCompare($1.artistName) == .orderedAscending }
         case .recentlyAdded:
-            return audioEngine.library.sorted { $0.id.uuidString > $1.id.uuidString }
+            return audioEngine.musicTracks.sorted { $0.id.uuidString > $1.id.uuidString }
         case .duration:
-            return audioEngine.library.sorted { $0.duration < $1.duration }
+            return audioEngine.musicTracks.sorted { $0.duration < $1.duration }
         }
     }
 
@@ -90,6 +93,8 @@ struct LibraryView: View {
                             case .albums:    albumsGridView
                             case .artists:   artistsListView
                             case .favorites: favoritesListView
+                            case .recent:    recentlyPlayedView
+                            case .top:       mostPlayedView
                             }
 
                             // Bottom clearance for mini-player + dock
@@ -97,12 +102,12 @@ struct LibraryView: View {
                         }
                         .padding(.top, 4)
                     }
-                    .scrollEdgeEffectStyle(.soft, for: .top)
+                    .compatScrollEdgeTop()
                 }
             }
             .navigationTitle("Library")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         isImportSheetPresented = true
                     } label: {
@@ -116,6 +121,9 @@ struct LibraryView: View {
             }
             .sheet(isPresented: $isImportSheetPresented) {
                 FileImportView(audioEngine: audioEngine)
+            }
+            .sheet(item: $playlistSheetTrack) { track in
+                AddToPlaylistSheet(track: track, audioEngine: audioEngine)
             }
         }
     }
@@ -155,7 +163,7 @@ struct LibraryView: View {
 
     private var songsListView: some View {
         Group {
-            if audioEngine.library.isEmpty {
+            if audioEngine.musicTracks.isEmpty {
                 emptyLibraryView
             } else {
                 VStack(spacing: 0) {
@@ -191,8 +199,8 @@ struct LibraryView: View {
                         }
                         
                         Spacer()
-                        
-                        Text("\(audioEngine.library.count) songs")
+
+                        Text("\(audioEngine.musicTracks.count) songs")
                             .font(.system(size: 12, weight: .regular))
                             .foregroundStyle(Color.waveTextTertiary)
                     }
@@ -208,6 +216,7 @@ struct LibraryView: View {
                                 onPlay: { audioEngine.playTrack(track, inContext: sortedTracks) },
                                 onToggleFavorite: { audioEngine.toggleFavorite(for: track) },
                                 onPlayNext: { audioEngine.playNext(track) },
+                                onAddToPlaylist: { playlistSheetTrack = track },
                                 onDelete: { audioEngine.deleteTrack(track) }
                             )
                         }
@@ -250,16 +259,13 @@ struct LibraryView: View {
             } else {
                 LazyVStack(spacing: 4) {
                     ForEach(uniqueArtists, id: \.self) { artistName in
-                        let artistTracks = audioEngine.library.filter { $0.artistName == artistName }
+                        let artistTracks = audioEngine.musicTracks.filter { $0.artistName == artistName }
                         HStack(spacing: 16) {
                             // Artist avatar
                             ZStack {
                                 Circle()
                                     .fill(Color.waveAccent.opacity(0.15))
-                                    .glassEffect(
-                                        .regular.tint(Color.waveAccent.opacity(0.15)),
-                                        in: Circle()
-                                    )
+                                    .waveGlassCircle(tint: Color.waveAccent.opacity(0.15))
                                     .frame(width: 52, height: 52)
 
                                 Image(systemName: "person.fill")
@@ -294,7 +300,7 @@ struct LibraryView: View {
     // MARK: - Favorites List
 
     private var favoritesListView: some View {
-        let favorites = audioEngine.library.filter { $0.isFavorite }
+        let favorites = audioEngine.musicTracks.filter { $0.isFavorite }
         return Group {
             if favorites.isEmpty {
                 VStack(spacing: 16) {
@@ -323,12 +329,100 @@ struct LibraryView: View {
                             onPlay: { audioEngine.playTrack(track, inContext: favorites) },
                             onToggleFavorite: { audioEngine.toggleFavorite(for: track) },
                             onPlayNext: { audioEngine.playNext(track) },
+                            onAddToPlaylist: { playlistSheetTrack = track },
                             onDelete: { audioEngine.deleteTrack(track) }
                         )
                     }
                 }
                 .padding(.horizontal, 4)
             }
+        }
+    }
+
+    // MARK: - Recently Played
+
+    private var recentlyPlayedView: some View {
+        let recent = audioEngine.recentlyPlayed
+        return Group {
+            if recent.isEmpty {
+                smartListEmptyView(
+                    icon: "clock",
+                    title: "Nothing Played Yet",
+                    message: "Songs you play will show up here, newest first."
+                )
+            } else {
+                LazyVStack(spacing: 2) {
+                    ForEach(recent) { track in
+                        TrackRowView(
+                            track: track,
+                            isCurrentTrack: audioEngine.currentTrack?.id == track.id,
+                            isPlaying: audioEngine.isPlaying,
+                            onPlay: { audioEngine.playTrack(track, inContext: recent) },
+                            onToggleFavorite: { audioEngine.toggleFavorite(for: track) },
+                            onPlayNext: { audioEngine.playNext(track) },
+                            onAddToPlaylist: { playlistSheetTrack = track },
+                            onDelete: { audioEngine.deleteTrack(track) }
+                        )
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+    }
+
+    // MARK: - Most Played
+
+    private var mostPlayedView: some View {
+        let top = audioEngine.mostPlayed
+        return Group {
+            if top.isEmpty {
+                smartListEmptyView(
+                    icon: "chart.bar.fill",
+                    title: "No Plays Yet",
+                    message: "Your most-played songs will climb the charts here."
+                )
+            } else {
+                LazyVStack(spacing: 2) {
+                    ForEach(Array(top.enumerated()), id: \.element.id) { index, track in
+                        HStack(spacing: 2) {
+                            Text("\(index + 1)")
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.waveAccent)
+                                .frame(width: 28)
+                            TrackRowView(
+                                track: track,
+                                isCurrentTrack: audioEngine.currentTrack?.id == track.id,
+                                isPlaying: audioEngine.isPlaying,
+                                onPlay: { audioEngine.playTrack(track, inContext: top) },
+                                onToggleFavorite: { audioEngine.toggleFavorite(for: track) },
+                                onPlayNext: { audioEngine.playNext(track) },
+                                onAddToPlaylist: { playlistSheetTrack = track },
+                                onDelete: { audioEngine.deleteTrack(track) }
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+    }
+
+    private func smartListEmptyView(icon: String, title: String, message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.system(size: 52))
+                .foregroundStyle(Color.secondary.opacity(0.5))
+                .padding(.top, 60)
+
+            Text(title)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(Color.primary)
+
+            Text(message)
+                .font(.system(size: 15))
+                .foregroundStyle(Color.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
         }
     }
 
@@ -342,10 +436,7 @@ struct LibraryView: View {
                 Circle()
                     .fill(Color.waveAccent.opacity(0.1))
                     .frame(width: 100, height: 100)
-                    .glassEffect(
-                        .regular.tint(Color.waveAccent.opacity(0.12)),
-                        in: Circle()
-                    )
+                    .waveGlassCircle(tint: Color.waveAccent.opacity(0.12))
 
                 Image(systemName: "music.note.badge.plus")
                     .font(.system(size: 44))

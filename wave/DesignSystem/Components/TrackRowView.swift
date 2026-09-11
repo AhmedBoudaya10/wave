@@ -14,6 +14,7 @@ struct TrackRowView: View {
     let onPlay: () -> Void
     let onToggleFavorite: () -> Void
     var onPlayNext: (() -> Void)? = nil
+    var onAddToPlaylist: (() -> Void)? = nil
     var onDelete: (() -> Void)? = nil
 
     var body: some View {
@@ -70,14 +71,29 @@ struct TrackRowView: View {
                             .foregroundStyle(Color.secondary)
                             .lineLimit(1)
 
-                        // Apple Music Audio Format Badge
-                        Text(track.audioFormat.components(separatedBy: " ").first ?? "AUDIO")
-                            .font(.system(size: 8.5, weight: .bold))
-                            .foregroundStyle(Color.secondary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1.5)
-                            .background(Color.primary.opacity(0.06))
-                            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                        // Audio format badge — lossless highlighted for collectors
+                        HStack(spacing: 4) {
+                            Text(track.shortFormatCode)
+                                .font(.system(size: 8.5, weight: .bold))
+                                .foregroundStyle(track.isLossless ? Color.waveAccent : Color.secondary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1.5)
+                                .background(
+                                    (track.isLossless ? Color.waveAccent : Color.primary)
+                                        .opacity(track.isLossless ? 0.12 : 0.06)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+
+                            if track.isHiRes {
+                                Text("HI-RES")
+                                    .font(.system(size: 8.5, weight: .bold))
+                                    .foregroundStyle(Color.waveSuccess)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1.5)
+                                    .background(Color.waveSuccess.opacity(0.12))
+                                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                            }
+                        }
                     }
                 }
 
@@ -94,7 +110,7 @@ struct TrackRowView: View {
                             .font(.system(size: 14))
                             .foregroundStyle(track.isFavorite ? Color.waveFavorite : Color.secondary.opacity(0.4))
                             .frame(width: 28, height: 28)
-                            .contentTransition(.symbolEffect(.replace))
+                            .compatSymbolReplaceTransition()
                     }
                     .buttonStyle(.plain)
                 }
@@ -111,6 +127,18 @@ struct TrackRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // Slide track to the right (leading swipe: favorite)
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button {
+                onToggleFavorite()
+            } label: {
+                Label(
+                    track.isFavorite ? "Unfavorite" : "Favorite",
+                    systemImage: track.isFavorite ? "heart.slash" : "heart.fill"
+                )
+            }
+            .tint(Color.waveFavorite)
+        }
         // Slide track to the left (trailing swipe actions)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if let onDelete {
@@ -119,6 +147,15 @@ struct TrackRowView: View {
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
+            }
+
+            if let onAddToPlaylist {
+                Button {
+                    onAddToPlaylist()
+                } label: {
+                    Label("Add to Playlist", systemImage: "text.badge.plus")
+                }
+                .tint(.blue)
             }
             
             if let onPlayNext {
@@ -146,6 +183,12 @@ struct TrackRowView: View {
                     track.isFavorite ? "Remove from Favorites" : "Add to Favorites",
                     systemImage: track.isFavorite ? "heart.slash" : "heart"
                 )
+            }
+
+            if let onAddToPlaylist {
+                Button { onAddToPlaylist() } label: {
+                    Label("Add to Playlist…", systemImage: "text.badge.plus")
+                }
             }
 
             ShareLink(item: "\(track.title) by \(track.artistName)") {

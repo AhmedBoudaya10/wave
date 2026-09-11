@@ -118,6 +118,70 @@ struct SettingsView: View {
                             }
                         }
                         .padding(.horizontal, 16)
+
+                        // Appearance
+                        VStack(alignment: .leading, spacing: 12) {
+                            sectionHeader("APPEARANCE")
+
+                            VStack(spacing: 14) {
+                                Text("Accent Color")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundStyle(Color.waveTextPrimary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                HStack(spacing: 12) {
+                                    ForEach(AppTheme.allCases) { theme in
+                                        let isSelected = ThemeStore.shared.current == theme
+                                        Button {
+                                            let generator = UIImpactFeedbackGenerator(style: .light)
+                                            generator.impactOccurred()
+                                            ThemeStore.shared.current = theme
+                                        } label: {
+                                            VStack(spacing: 6) {
+                                                ZStack {
+                                                    Circle()
+                                                        .fill(
+                                                            LinearGradient(
+                                                                colors: [theme.accent, theme.glow],
+                                                                startPoint: .topLeading,
+                                                                endPoint: .bottomTrailing
+                                                            )
+                                                        )
+                                                        .frame(width: 44, height: 44)
+                                                        .shadow(color: theme.accent.opacity(0.4), radius: isSelected ? 8 : 0, x: 0, y: 3)
+
+                                                    if isSelected {
+                                                        Image(systemName: "checkmark")
+                                                            .font(.system(size: 15, weight: .bold))
+                                                            .foregroundStyle(.white)
+                                                    }
+                                                }
+                                                .overlay {
+                                                    Circle()
+                                                        .stroke(Color.white.opacity(isSelected ? 0.9 : 0.15), lineWidth: isSelected ? 2.5 : 1)
+                                                        .frame(width: 50, height: 50)
+                                                }
+                                                .frame(width: 52, height: 52)
+
+                                                Text(theme.displayName)
+                                                    .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
+                                                    .foregroundStyle(isSelected ? Color.waveTextPrimary : Color.waveTextSecondary)
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .padding(16)
+                            .background(Color.waveSurface)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Color.waveBorder, lineWidth: 1)
+                            }
+                        }
+                        .padding(.horizontal, 16)
                         
                         // Lyrics Atmosphere
                         VStack(alignment: .leading, spacing: 12) {
@@ -160,7 +224,7 @@ struct SettingsView: View {
                             sectionHeader("STORAGE & CACHE")
                             
                             VStack(spacing: 1) {
-                                diagnosticRow(title: "Imported Tracks", value: "\(audioEngine.library.count) files")
+                                diagnosticRow(title: "Imported Tracks", value: "\(audioEngine.musicTracks.count) songs • \(audioEngine.audiobookTracks.count) books")
                                 Divider().overlay(Color.waveBorder)
                                 diagnosticRow(title: "Audio Storage Footprint", value: formattedAudioStorage)
                                 Divider().overlay(Color.waveBorder)
@@ -212,7 +276,7 @@ struct SettingsView: View {
                                 .foregroundStyle(Color.waveTextPrimary)
                                 .tracking(2.0)
                             
-                            Text("Version 1.1.0 • iOS 27 Native Edition")
+                            Text("Version 2.0.0 • iOS 27 Native Edition")
                                 .font(.system(size: 12, weight: .regular))
                                 .foregroundStyle(Color.waveTextTertiary)
                             

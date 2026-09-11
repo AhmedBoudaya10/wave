@@ -9,13 +9,21 @@ import SwiftUI
 import PhotosUI
 
 private extension UIImage {
+    /// Center-crops to a 1:1 square. The crop rect is computed in pixels
+    /// (not points) so @2x/@3x photos crop the correct region.
     func squareCropped() -> UIImage {
-        let side = min(size.width, size.height)
-        let x = (size.width - side) / 2
-        let y = (size.height - side) / 2
-        let cropRect = CGRect(x: x, y: y, width: side, height: side)
-        guard let cgImage = self.cgImage?.cropping(to: cropRect) else { return self }
-        return UIImage(cgImage: cgImage, scale: scale, orientation: imageOrientation)
+        guard let cgImage = self.cgImage else { return self }
+        let pixelWidth = CGFloat(cgImage.width)
+        let pixelHeight = CGFloat(cgImage.height)
+        let side = min(pixelWidth, pixelHeight)
+        let cropRect = CGRect(
+            x: (pixelWidth - side) / 2,
+            y: (pixelHeight - side) / 2,
+            width: side,
+            height: side
+        )
+        guard let cropped = cgImage.cropping(to: cropRect) else { return self }
+        return UIImage(cgImage: cropped, scale: scale, orientation: imageOrientation)
     }
 }
 
@@ -33,14 +41,16 @@ struct PlaylistsView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         playlistsGrid
-                        
+
+                        smartPlaylistsSection
+
                         Spacer().frame(height: 24)
                     }
                 }
             }
             .navigationTitle("Playlists")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         isCreateSheetPresented = true
                     } label: {
@@ -97,9 +107,9 @@ struct PlaylistsView: View {
             }
             .buttonStyle(.plain)
             
-            // User playlists
+            // User playlists (music only)
             ForEach(audioEngine.playlists) { playlist in
-                let playlistTracks = audioEngine.library.filter { playlist.trackIds.contains($0.id) }
+                let playlistTracks = audioEngine.musicTracks.filter { playlist.trackIds.contains($0.id) }
                 NavigationLink(destination: PlaylistDetailView(playlist: playlist, audioEngine: audioEngine)) {
                     VStack(alignment: .leading, spacing: 8) {
                         ArtworkImageView(
@@ -136,6 +146,61 @@ struct PlaylistsView: View {
         .padding(.horizontal, 16)
         .padding(.top, 10)
     }
+
+    // MARK: - Smart Playlists
+
+    private var smartPlaylistsSection: some View {
+        let smart = [
+            (playlist: audioEngine.onRepeatPlaylist, symbol: "repeat", colors: [Color.waveAccent, Color.waveAccentGlow]),
+            (playlist: audioEngine.forgottenGemsPlaylist, symbol: "diamond.fill", colors: [Color.purple, Color.blue]),
+            (playlist: audioEngine.newImportsPlaylist, symbol: "sparkles", colors: [Color.teal, Color.green])
+        ]
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("SMART PLAYLISTS")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.waveTextTertiary)
+                .tracking(1.0)
+                .padding(.horizontal, 16)
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 16),
+                    GridItem(.flexible(), spacing: 16),
+                    GridItem(.flexible(), spacing: 16)
+                ],
+                spacing: 16
+            ) {
+                ForEach(smart, id: \.playlist.id) { item in
+                    NavigationLink(destination: PlaylistDetailView(playlist: item.playlist, audioEngine: audioEngine, isBuiltIn: true, isSmart: true)) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ArtworkImageView(
+                                gradientColors: item.colors,
+                                artworkKey: nil,
+                                symbol: item.symbol,
+                                cornerRadius: 14,
+                                showShadow: true
+                            )
+                            .aspectRatio(1, contentMode: .fit)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.playlist.name)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(Color.waveTextPrimary)
+                                    .lineLimit(1)
+
+                                Text("\(item.playlist.trackIds.count) track\(item.playlist.trackIds.count == 1 ? "" : "s")")
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundStyle(Color.waveTextSecondary)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
 }
 
 // MARK: - Create Playlist Sheet
@@ -168,14 +233,14 @@ struct CreatePlaylistSheet: View {
             .navigationTitle("New Playlist")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Color.waveTextSecondary)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Create") {
                         createPlaylist()
                         dismiss()
@@ -222,12 +287,12 @@ struct CreatePlaylistSheet: View {
             Task {
                 if let data = try? await newItem?.loadTransferable(type: Data.self),
                    let image = UIImage(data: data) {
-                    artworkImage = image
+                    artworkImage = image.squareCropped()
                 }
             }
         }
     }
-    
+
     private var formSection: some View {
         VStack(spacing: 1) {
             HStack {
@@ -284,8 +349,10 @@ struct PlaylistDetailView: View {
     let playlist: Playlist
     @Bindable var audioEngine: AudioEngineService
     var isBuiltIn: Bool = false
+    var isSmart: Bool = false
     @State private var isAddSongsSheetPresented = false
     @State private var isEditSheetPresented = false
+    @State private var playlistSheetTrack: Track? = nil
     
     private var currentPlaylist: Playlist {
         if isBuiltIn { return playlist }
@@ -293,7 +360,7 @@ struct PlaylistDetailView: View {
     }
     
     private var tracks: [Track] {
-        audioEngine.library.filter { currentPlaylist.trackIds.contains($0.id) }
+        audioEngine.musicTracks.filter { currentPlaylist.trackIds.contains($0.id) }
     }
     
     var body: some View {
@@ -422,7 +489,10 @@ struct PlaylistDetailView: View {
                                 onPlayNext: {
                                     audioEngine.playNext(track)
                                 },
-                                onDelete: {
+                                onAddToPlaylist: {
+                                    playlistSheetTrack = track
+                                },
+                                onDelete: isSmart ? nil : {
                                     if isBuiltIn {
                                         audioEngine.toggleFavorite(for: track)
                                     } else {
@@ -441,7 +511,7 @@ struct PlaylistDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !isBuiltIn {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button {
                         isEditSheetPresented = true
                     } label: {
@@ -460,6 +530,9 @@ struct PlaylistDetailView: View {
         }
         .sheet(isPresented: $isEditSheetPresented) {
             EditPlaylistSheet(playlist: currentPlaylist, audioEngine: audioEngine)
+        }
+        .sheet(item: $playlistSheetTrack) { track in
+            AddToPlaylistSheet(track: track, audioEngine: audioEngine)
         }
     }
 }
@@ -510,14 +583,14 @@ struct EditPlaylistSheet: View {
             .navigationTitle("Edit Playlist")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Color.waveTextSecondary)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
                         saveChanges()
                         dismiss()
@@ -699,9 +772,9 @@ struct AddSongsToPlaylistSheet: View {
     
     private var filteredTracks: [Track] {
         if searchQuery.trimmingCharacters(in: .whitespaces).isEmpty {
-            return audioEngine.library
+            return audioEngine.musicTracks
         }
-        return audioEngine.library.filter { track in
+        return audioEngine.musicTracks.filter { track in
             track.title.localizedCaseInsensitiveContains(searchQuery) ||
             track.artistName.localizedCaseInsensitiveContains(searchQuery) ||
             track.albumTitle.localizedCaseInsensitiveContains(searchQuery)
@@ -713,7 +786,7 @@ struct AddSongsToPlaylistSheet: View {
             ZStack {
                 Color.waveBackground.ignoresSafeArea()
                 
-                if audioEngine.library.isEmpty {
+                if audioEngine.musicTracks.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "music.note")
                             .font(.system(size: 40))
@@ -774,7 +847,7 @@ struct AddSongsToPlaylistSheet: View {
             .navigationTitle("Add to \(currentPlaylist.name)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }

@@ -27,7 +27,7 @@ struct LiquidGlassSurfaceModifier: ViewModifier {
                 .background(Color.waveSurfaceElevated)
                 .clipShape(shape)
                 .overlay(shape.stroke(Color.waveBorder, lineWidth: 1))
-        } else {
+        } else if #available(iOS 26, *) {
             content
                 .background {
                     if let tint {
@@ -50,6 +50,19 @@ struct LiquidGlassSurfaceModifier: ViewModifier {
                             lineWidth: 0.5
                         )
                     }
+                }
+                .shadow(color: Color.black.opacity(0.14), radius: shadowRadius, x: 0, y: 6)
+        } else {
+            // iOS 16–25 fallback: frosted Material, no Liquid Glass.
+            content
+                .background(.ultraThinMaterial, in: shape)
+                .background {
+                    if let tint {
+                        shape.fill(tint.opacity(tintOpacity))
+                    }
+                }
+                .overlay {
+                    shape.strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
                 }
                 .shadow(color: Color.black.opacity(0.14), radius: shadowRadius, x: 0, y: 6)
         }
@@ -110,7 +123,7 @@ struct LiquidGlassCapsuleModifier: ViewModifier {
                 .background(Color.waveSurfaceElevated)
                 .clipShape(shape)
                 .overlay(shape.stroke(Color.waveBorder, lineWidth: 1))
-        } else {
+        } else if #available(iOS 26, *) {
             content
                 .background {
                     if let tint {
@@ -135,6 +148,19 @@ struct LiquidGlassCapsuleModifier: ViewModifier {
                     }
                 }
                 .shadow(color: Color.black.opacity(0.14), radius: shadowRadius, x: 0, y: 6)
+        } else {
+            // iOS 16–25 fallback: frosted Material, no Liquid Glass.
+            content
+                .background(.ultraThinMaterial, in: shape)
+                .background {
+                    if let tint {
+                        shape.fill(tint.opacity(tintOpacity))
+                    }
+                }
+                .overlay {
+                    shape.strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
+                }
+                .shadow(color: Color.black.opacity(0.14), radius: shadowRadius, x: 0, y: 6)
         }
     }
 }
@@ -153,7 +179,11 @@ struct WaveGlassContainer<Content: View>: View {
     }
 
     var body: some View {
-        GlassEffectContainer(spacing: spacing) {
+        if #available(iOS 26, *) {
+            GlassEffectContainer(spacing: spacing) {
+                content
+            }
+        } else {
             content
         }
     }

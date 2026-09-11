@@ -7,12 +7,14 @@
 
 import UIKit
 import SwiftUI
+import ImageIO
 
 @MainActor
 final class ArtworkCacheManager {
     static let shared = ArtworkCacheManager()
     
     private let memoryCache = NSCache<NSString, UIImage>()
+    private let thumbnailCache = NSCache<NSString, UIImage>()
     
     private var artworkDirectoryURL: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -22,8 +24,21 @@ final class ArtworkCacheManager {
     }
     
     init() {
-        memoryCache.countLimit = 150
-        memoryCache.totalCostLimit = 50 * 1024 * 1024 // 50MB
+        // Full-resolution artwork (used by the player / lock screen). Costed so
+        // entries actually evict under pressure instead of piling up in RAM.
+        memoryCache.countLimit = 30
+        memoryCache.totalCostLimit = 40 * 1024 * 1024 // 40MB
+        
+        // Lightweight list/grid thumbnails (downsampled on disk decode).
+        thumbnailCache.countLimit = 300
+        thumbnailCache.totalCostLimit = 64 * 1024 * 1024 // 64MB
+    }
+    
+    private func memoryBytes(for image: UIImage) -> Int {
+        if let cgImage = image.cgImage {
+            return cgImage.bytesPerRow * cgImage.height
+        }
+        return Int(image.size.width * image.size.height * 4)
     }
     
     func saveArtwork(data: Data, for key: UUID) -> Bool {
@@ -42,7 +57,8 @@ final class ArtworkCacheManager {
         
         if let jpegData = resized.jpegData(compressionQuality: 0.85) {
             try? jpegData.write(to: fileURL)
-            memoryCache.setObject(resized, forKey: key.uuidString as NSString)
+            memoryCache.setObject(resized, forKey: key.uuidString as NSString, cost: memoryBytes(for: resized))
+            thumbnailCache.removeObject(forKey: self.thumbnailKey(for: key) as NSString)
             return true
         }
         return false
@@ -55,20 +71,52 @@ final class ArtworkCacheManager {
         
         let fileURL = artworkDirectoryURL.appendingPathComponent("\(key.uuidString).jpg")
         if let image = UIImage(contentsOfFile: fileURL.path) {
-            memoryCache.setObject(image, forKey: key.uuidString as NSString)
+            memoryCache.setObject(image, forKey: key.uuidString as NSString, cost: memoryBytes(for: image))
             return image
         }
         return nil
     }
     
+    /// Lightweight image for small list/grid cells: downsampled on decode so a
+    /// 1024px source never becomes a 4MB bitmap just to fill a 60pt row.
+    func loadThumbnail(for key: UUID, maxPixel: CGFloat = 400) -> UIImage? {
+        let keyString = thumbnailKey(for: key, maxPixel: maxPixel)
+        if let cached = thumbnailCache.object(forKey: keyString as NSString) {
+            return cached
+        }
+        
+        let fileURL = artworkDirectoryURL.appendingPathComponent("\(key.uuidString).jpg")
+        guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil) else {
+            return nil
+        }
+        let options: [CFString: Any] = [
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        
+        let image = UIImage(cgImage: cgImage)
+        thumbnailCache.setObject(image, forKey: keyString as NSString, cost: memoryBytes(for: image))
+        return image
+    }
+    
+    private func thumbnailKey(for key: UUID, maxPixel: CGFloat = 400) -> String {
+        "\(key.uuidString)-thumb-\(Int(maxPixel))"
+    }
+    
     func removeArtwork(for key: UUID) {
         memoryCache.removeObject(forKey: key.uuidString as NSString)
+        thumbnailCache.removeObject(forKey: thumbnailKey(for: key) as NSString)
         let fileURL = artworkDirectoryURL.appendingPathComponent("\(key.uuidString).jpg")
         try? FileManager.default.removeItem(at: fileURL)
     }
     
     func clearCache() {
         memoryCache.removeAllObjects()
+        thumbnailCache.removeAllObjects()
         if let files = try? FileManager.default.contentsOfDirectory(at: artworkDirectoryURL, includingPropertiesForKeys: nil) {
             for file in files {
                 try? FileManager.default.removeItem(at: file)

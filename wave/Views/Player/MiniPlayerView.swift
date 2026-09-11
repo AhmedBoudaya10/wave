@@ -24,7 +24,7 @@ struct MiniPlayerView: View {
                     ArtworkImageView(
                         gradientColors: track.artworkGradientColors,
                         artworkKey: track.artworkKey,
-                        symbol: "music.note",
+                        symbol: track.isAudiobook ? "book.fill" : "music.note",
                         cornerRadius: 7,
                         showShadow: true
                     )
@@ -38,7 +38,7 @@ struct MiniPlayerView: View {
                             .foregroundStyle(Color.primary)
                             .lineLimit(1)
 
-                        Text(track.artistName)
+                        Text(track.isAudiobook ? "\(track.artistName) • \(Int((track.bookProgress) * 100))%" : track.artistName)
                             .font(.system(size: 12.5, weight: .regular))
                             .foregroundStyle(Color.secondary)
                             .lineLimit(1)
@@ -56,22 +56,26 @@ struct MiniPlayerView: View {
                                 .font(.system(size: 19, weight: .bold))
                                 .foregroundStyle(Color.primary)
                                 .frame(width: 40, height: 40)
-                                .contentTransition(.symbolEffect(.replace))
+                                .compatSymbolReplaceTransition()
                         }
                         .buttonStyle(.plain)
-                        .sensoryFeedback(.impact(weight: .medium, intensity: 0.7), trigger: audioEngine.isPlaying)
+                        .compatImpactMedium(trigger: audioEngine.isPlaying, intensity: 0.7)
 
-                        // Next Track
+                        // Next: chapter-skip for books, next track for music
                         Button {
-                            audioEngine.nextTrack()
+                            if track.isAudiobook {
+                                audioEngine.skipBook(by: 30)
+                            } else {
+                                audioEngine.nextTrack()
+                            }
                         } label: {
-                            Image(systemName: "forward.fill")
+                            Image(systemName: track.isAudiobook ? "goforward.30" : "forward.fill")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(Color.primary.opacity(0.85))
                                 .frame(width: 36, height: 40)
                         }
                         .buttonStyle(.plain)
-                        .sensoryFeedback(.impact(weight: .light, intensity: 0.5), trigger: audioEngine.currentTrack?.id)
+                        .compatImpactLight(trigger: audioEngine.currentTrack?.id, intensity: 0.5)
                     }
                 }
                 .padding(.leading, 10)
@@ -80,7 +84,11 @@ struct MiniPlayerView: View {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) {
-                        audioEngine.isNowPlayingPresented = true
+                        if track.isAudiobook {
+                            audioEngine.isBookPlayerPresented = true
+                        } else {
+                            audioEngine.isNowPlayingPresented = true
+                        }
                     }
                 }
 
@@ -114,13 +122,26 @@ struct MiniPlayerView: View {
             .gesture(
                 DragGesture(minimumDistance: 15)
                     .onEnded { value in
+                        let isBook = audioEngine.currentTrack?.isAudiobook == true
                         if value.translation.width < -40 {
-                            audioEngine.nextTrack()
+                            if isBook {
+                                audioEngine.skipBook(by: 30)
+                            } else {
+                                audioEngine.nextTrack()
+                            }
                         } else if value.translation.width > 40 {
-                            audioEngine.previousTrack()
+                            if isBook {
+                                audioEngine.skipBook(by: -15)
+                            } else {
+                                audioEngine.previousTrack()
+                            }
                         } else if value.translation.height < -30 {
                             withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) {
-                                audioEngine.isNowPlayingPresented = true
+                                if isBook {
+                                    audioEngine.isBookPlayerPresented = true
+                                } else {
+                                    audioEngine.isNowPlayingPresented = true
+                                }
                             }
                         }
                     }

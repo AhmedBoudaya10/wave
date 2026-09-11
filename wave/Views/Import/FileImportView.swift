@@ -18,6 +18,7 @@ struct FileImportView: View {
     @State private var importProgress: Double = 0.0
     @State private var statusMessage: String = "Select audio files from Files app"
     @State private var importedCount: Int = 0
+    @State private var importedBooksCount: Int = 0
     @State private var duplicatesSkipped: Int = 0
     
     var body: some View {
@@ -43,7 +44,7 @@ struct FileImportView: View {
                             .font(.system(size: 22, weight: .bold))
                             .foregroundStyle(Color.waveTextPrimary)
                         
-                        Text("Select MP3, FLAC, AAC, ALAC, or WAV files from your iCloud Drive or iPhone storage.")
+                        Text("Select MP3, FLAC, AAC, ALAC, WAV — or .M4B audiobooks, which land on your Books shelf.")
                             .font(.system(size: 14, weight: .regular))
                             .foregroundStyle(Color.waveTextSecondary)
                             .multilineTextAlignment(.center)
@@ -84,8 +85,8 @@ struct FileImportView: View {
                             Image(systemName: importedCount > 0 ? "checkmark.circle.fill" : "info.circle.fill")
                                 .font(.system(size: 32))
                                 .foregroundStyle(importedCount > 0 ? Color.waveSuccess : Color.waveAccent)
-                            
-                            Text(importedCount > 0 ? "Successfully Added \(importedCount) Tracks" : "No New Tracks Added")
+
+                            Text(importedResultMessage)
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(Color.waveTextPrimary)
                             
@@ -129,7 +130,7 @@ struct FileImportView: View {
             .navigationTitle("Import Files")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
@@ -152,6 +153,18 @@ struct FileImportView: View {
         }
     }
     
+    private var importedResultMessage: String {
+        guard importedCount > 0 else { return "No New Tracks Added" }
+        if importedBooksCount > 0 && importedBooksCount == importedCount {
+            return "Added \(importedBooksCount) Book\(importedBooksCount == 1 ? "" : "s") to Your Shelf"
+        }
+        if importedBooksCount > 0 {
+            let music = importedCount - importedBooksCount
+            return "Added \(music) Track\(music == 1 ? "" : "s") + \(importedBooksCount) Book\(importedBooksCount == 1 ? "" : "s")"
+        }
+        return "Successfully Added \(importedCount) Tracks"
+    }
+
     private func processSelectedURLs(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         isImporting = true
@@ -227,16 +240,23 @@ struct FileImportView: View {
                     bitRate: meta.bitRate,
                     releaseYear: meta.releaseYear,
                     trackNumber: meta.trackNumber,
+                    addedAt: Date(),
                     localFileName: destinationFileName,
                     fileHash: hash,
                     artworkKey: artworkKey,
                     colorRed: meta.colorRed,
                     colorGreen: meta.colorGreen,
-                    colorBlue: meta.colorBlue
+                    colorBlue: meta.colorBlue,
+                    isAudiobook: meta.isAudiobook,
+                    bookmarkSeconds: 0,
+                    bookFinished: false,
+                    lastOpenedAt: meta.isAudiobook ? Date() : nil,
+                    playbackRate: 1.0,
+                    chapters: meta.chapters
                 )
                 newTracks.append(track)
             }
-            
+
             await MainActor.run {
                 for track in newTracks {
                     self.audioEngine.addImportedTrack(track)
@@ -244,6 +264,7 @@ struct FileImportView: View {
                 self.audioEngine.saveLibrary()
                 self.isImporting = false
                 self.importedCount = newTracks.count
+                self.importedBooksCount = newTracks.filter { $0.isAudiobook }.count
                 self.duplicatesSkipped = skipped
             }
         }

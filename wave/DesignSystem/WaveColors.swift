@@ -21,8 +21,10 @@ extension Color {
     static let waveTextTertiary = Color(uiColor: .tertiaryLabel)
     
     // MARK: - Accents & States (Apple Music Palette)
-    static let waveAccent = Color(red: 250/255, green: 45/255, blue: 72/255)       // Apple Music Pink-Red (#FA2D48)
-    static let waveAccentGlow = Color(red: 255/255, green: 75/255, blue: 110/255)  // Vibrant Coral Glow
+    /// Dynamic: follows the user's selected accent theme.
+    static var waveAccent: Color { ThemeStore.shared.current.accent }
+    /// Dynamic: follows the user's selected accent theme.
+    static var waveAccentGlow: Color { ThemeStore.shared.current.glow }
     static let waveFavorite = Color(red: 250/255, green: 45/255, blue: 72/255)     // Apple Music Pink-Red
     static let waveDestructive = Color(red: 255/255, green: 69/255, blue: 58/255)
     static let waveSuccess = Color(red: 48/255, green: 209/255, blue: 88/255)

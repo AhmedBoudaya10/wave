@@ -10,6 +10,7 @@ import SwiftUI
 struct AlbumDetailView: View {
     let album: Album
     @Bindable var audioEngine: AudioEngineService
+    @State private var playlistSheetTrack: Track? = nil
     
     var body: some View {
         ScrollView {
@@ -112,6 +113,9 @@ struct AlbumDetailView: View {
                             onPlayNext: {
                                 audioEngine.playNext(track)
                             },
+                            onAddToPlaylist: {
+                                playlistSheetTrack = track
+                            },
                             onDelete: {
                                 audioEngine.deleteTrack(track)
                             }
@@ -125,5 +129,8 @@ struct AlbumDetailView: View {
         }
         .background(Color.waveBackground.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $playlistSheetTrack) { track in
+            AddToPlaylistSheet(track: track, audioEngine: audioEngine)
+        }
     }
 }

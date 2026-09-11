@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var selectedTab: WaveTab = .library
 
     var body: some View {
+        // Observe the theme store so the whole tree re-renders on accent change.
+        let _ = ThemeStore.shared.current
         ZStack(alignment: .bottom) {
             // Main Tab Content
             Group {
@@ -20,8 +22,12 @@ struct ContentView: View {
                     LibraryView(audioEngine: audioEngine)
                 case .playlists:
                     PlaylistsView(audioEngine: audioEngine)
+                case .books:
+                    BooksLibraryView(audioEngine: audioEngine)
                 case .search:
                     SearchView(audioEngine: audioEngine)
+                case .stats:
+                    StatsView(audioEngine: audioEngine)
                 case .settings:
                     SettingsView(audioEngine: audioEngine)
                 }
@@ -39,6 +45,9 @@ struct ContentView: View {
         .ignoresSafeArea(.keyboard)
         .fullScreenCover(isPresented: $audioEngine.isNowPlayingPresented) {
             NowPlayingView(audioEngine: audioEngine)
+        }
+        .fullScreenCover(isPresented: $audioEngine.isBookPlayerPresented) {
+            BookPlayerView(audioEngine: audioEngine)
         }
     }
 }

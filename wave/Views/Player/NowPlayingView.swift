@@ -112,17 +112,28 @@ struct NowPlayingView: View {
             QueueSheetView(audioEngine: audioEngine)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(.ultraThinMaterial)
+                .compatPresentationMaterial()
         }
         .sheet(isPresented: $audioEngine.isLyricsSheetPresented) {
             LyricsSheetView(audioEngine: audioEngine)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
-                .presentationBackground(.ultraThinMaterial)
+                .compatPresentationMaterial()
         }
     }
 
     // MARK: - Top Navigation Bar
+
+    private var sleepTimerLabel: String {
+        if audioEngine.sleepAtEndOfTrack {
+            return "Sleep: End of Track"
+        }
+        if let remaining = audioEngine.sleepTimerRemaining {
+            let minutes = max(Int(ceil(remaining / 60)), 1)
+            return "Sleep in \(minutes) min"
+        }
+        return "Sleep Timer"
+    }
 
     private func topBar(track: Track) -> some View {
         HStack {
@@ -171,6 +182,46 @@ struct NowPlayingView: View {
                     )
                 }
 
+                Menu {
+                    Button {
+                        audioEngine.cancelSleepTimer()
+                    } label: {
+                        Label(
+                            "Off",
+                            systemImage: !audioEngine.isSleepTimerActive ? "checkmark" : "moon.zzz"
+                        )
+                    }
+
+                    Button {
+                        audioEngine.setSleepTimer(minutes: 15)
+                    } label: {
+                        Label("After 15 Minutes", systemImage: "timer")
+                    }
+
+                    Button {
+                        audioEngine.setSleepTimer(minutes: 30)
+                    } label: {
+                        Label("After 30 Minutes", systemImage: "timer")
+                    }
+
+                    Button {
+                        audioEngine.setSleepTimer(minutes: 60)
+                    } label: {
+                        Label("After 1 Hour", systemImage: "timer")
+                    }
+
+                    Button {
+                        audioEngine.setSleepEndOfTrack()
+                    } label: {
+                        Label("End of Track", systemImage: "forward.end")
+                    }
+                } label: {
+                    Label(
+                        audioEngine.isSleepTimerActive ? sleepTimerLabel : "Sleep Timer",
+                        systemImage: "moon.zzz"
+                    )
+                }
+
                 Divider()
 
                 ShareLink(item: "\(track.title) by \(track.artistName)") {
@@ -212,10 +263,10 @@ struct NowPlayingView: View {
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(track.isFavorite ? Color.waveFavorite : Color.secondary.opacity(0.6))
                     .frame(width: 44, height: 44)
-                    .contentTransition(.symbolEffect(.replace))
+                    .compatSymbolReplaceTransition()
             }
             .buttonStyle(.plain)
-            .sensoryFeedback(.success, trigger: track.isFavorite)
+            .compatSuccess(trigger: track.isFavorite)
         }
     }
 
@@ -230,11 +281,11 @@ struct NowPlayingView: View {
                 Image(systemName: "shuffle")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(audioEngine.isShuffleActive ? Color.waveAccent : Color.secondary.opacity(0.7))
-                    .symbolEffect(.bounce, value: audioEngine.isShuffleActive)
+                    .compatBounce(value: audioEngine.isShuffleActive)
                     .frame(maxWidth: .infinity, minHeight: 48)
             }
             .buttonStyle(.plain)
-            .sensoryFeedback(.impact(weight: .light), trigger: audioEngine.isShuffleActive)
+            .compatImpactLight(trigger: audioEngine.isShuffleActive)
 
             // Previous
             Button {
@@ -256,10 +307,10 @@ struct NowPlayingView: View {
                     .foregroundStyle(Color.primary)
                     .frame(width: 64, height: 64)
                     .offset(x: audioEngine.isPlaying ? 0 : 2)
-                    .contentTransition(.symbolEffect(.replace))
+                    .compatSymbolReplaceTransition()
             }
             .buttonStyle(.plain)
-            .sensoryFeedback(.impact(weight: .medium, intensity: 0.85), trigger: audioEngine.isPlaying)
+            .compatImpactMedium(trigger: audioEngine.isPlaying, intensity: 0.85)
 
             // Next
             Button {
@@ -280,7 +331,7 @@ struct NowPlayingView: View {
                     Image(systemName: audioEngine.repeatMode.iconName)
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(audioEngine.repeatMode != .off ? Color.waveAccent : Color.secondary.opacity(0.7))
-                        .symbolEffect(.bounce, value: audioEngine.repeatMode)
+                        .compatBounce(value: audioEngine.repeatMode)
 
                     if audioEngine.repeatMode == .one {
                         Text("1")
@@ -292,7 +343,7 @@ struct NowPlayingView: View {
                 .frame(maxWidth: .infinity, minHeight: 48)
             }
             .buttonStyle(.plain)
-            .sensoryFeedback(.impact(weight: .light), trigger: audioEngine.repeatMode)
+            .compatImpactLight(trigger: audioEngine.repeatMode)
         }
         .frame(height: 64)
     }
